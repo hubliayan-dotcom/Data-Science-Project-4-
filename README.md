@@ -65,12 +65,15 @@ ClimateNet/
 
 ## 🖥 Dashboard Preview
 
-The dashboard provides:
-- **Regional temperature anomaly analysis** with Arctic amplification modeling.
-- **Multi-model forecast comparison** (RF vs HW vs ARIMA).
-- **Anomaly event detection** with historical record tagging.
-- **AI-generated climate insights** for automated trend interpretation.
-- **Performance metric benchmarking** (R², RMSE, MAE).
+### Regional Climate Forecast Dashboard
+![ClimateNet Dashboard 1](./ss1.png)
+
+### Performance Metrics & Anomaly Detection
+![ClimateNet Dashboard 2](./ss2.png)
+
+### Data Ingestion Stream Monitoring
+![ClimateNet Dashboard 3](./ss3.png)
+
 
 ## ⚙️ Installation & Usage
 
