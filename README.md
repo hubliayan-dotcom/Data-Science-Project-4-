@@ -4,6 +4,11 @@
 
 A climate intelligence analytics platform that processes historical temperature and CO₂ records from NASA and NOAA to detect warming anomalies, compare forecasting models, and generate actionable climate-risk insights through an interactive research dashboard.
 
+
+## 🔗 Live Demo
+**[Launch ClimateNet Dashboard](https://ais-dev-nz63hffuieintur5iy7tv6-50948685477.asia-southeast1.run.app)**
+
+
 ## 🎯 Business Value
 
 ClimateNet simulates how climate research and sustainability teams analyze environmental indicators to:
