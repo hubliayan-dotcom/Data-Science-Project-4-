@@ -1,0 +1,6 @@
+{
+  "name": "Climate Trend Analyzer",
+  "description": "A high-fidelity data science dashboard for analyzing historical climate patterns, detecting anomalies, and forecasting future trends with AI-driven insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
