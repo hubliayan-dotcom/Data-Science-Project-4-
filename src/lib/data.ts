@@ -1,4 +1,5 @@
-import { addMonths, format, startOfMonth } from 'date-fns';
+import { addMonths, format } from 'date-fns';
+import { REAL_NASA_TEMP_ANOMALIES, REAL_NOAA_CO2 } from './public_data_raw';
 
 export interface ClimateDataPoint {
   date: string;
@@ -7,72 +8,108 @@ export interface ClimateDataPoint {
   month: number;
   temp: number;
   co2: number;
-  rainfall: number;
-  isAnomaly?: boolean;
-  zScore?: number;
+  region: string;
+  // Engineered Features
+  tempLag1: number;
+  tempLag12: number;
+  rollingAvg12: number;
+  isAnomaly: boolean;
+  isPublicDataset: boolean;
 }
 
-export function generateSyntheticClimateData(startYear = 1900, endYear = 2024): ClimateDataPoint[] {
-  const data: ClimateDataPoint[] = [];
-  const start = new Date(startYear, 0, 1);
-  const totalMonths = (endYear - startYear + 1) * 12;
+const REGIONS = ['Global', 'Arctic', 'Tropics', 'Antarctic'];
 
-  // Base warming trend: +1.5°C over 124 years (~0.012 per year)
-  // We'll use a slightly accelerating trend for realism
-  
-  for (let i = 0; i < totalMonths; i++) {
-    const currentDate = addMonths(start, i);
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
+/**
+ * Data Ingestion Pipeline
+ * Integrates REAL Public Datasets (NASA/NOAA) with Virtual Simulation.
+ */
+export async function ingestPublicDatasets(): Promise<ClimateDataPoint[]> {
+  const allData: ClimateDataPoint[] = [];
+
+  REGIONS.forEach(region => {
+    const start = new Date(1880, 0, 1);
+    const months = (2024 - 1880 + 1) * 12;
     
-    // Normalized time (0 to 1)
-    const t = i / totalMonths;
-    
-    // Linear + Exponential warming components
-    const baseTemp = 14.0 + (1.2 * t) + (0.4 * Math.pow(t, 2));
-    
-    // Seasonality (sine wave)
-    const seasonality = 5 * Math.sin((2 * Math.PI * (month - 1)) / 12);
-    
-    // Random noise
-    const noise = (Math.random() - 0.5) * 0.8;
-    
-    // Inject anomalies
-    let anomaly = 0;
-    const isAnomaly = Math.random() < 0.02; // 2% chance per month
-    if (isAnomaly) {
-      anomaly = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 2);
+    // Regional Constants
+    const baseTemp = region === 'Arctic' ? -18 : region === 'Tropics' ? 25 : 14.5;
+    const warmingRate = region === 'Arctic' ? 0.045 : 0.015; 
+
+    let regionPoints: ClimateDataPoint[] = [];
+
+    for (let i = 0; i < months; i++) {
+        const d = addMonths(start, i);
+        const year = d.getFullYear();
+        const monthNum = d.getMonth() + 1;
+
+        // --- Data Fusion: Public Dataset + Simulation ---
+        let temp = 0;
+        let co2 = 0;
+        let isPublicDataset = false;
+
+        // 1. Check for real NASA Temperature Anomalies (Public)
+        const realTemp = REAL_NASA_TEMP_ANOMALIES.find(r => r.year === year);
+        if (realTemp && region === 'Global') {
+            temp = 14.2 + realTemp.temp; // Base 14.2 + anomaly
+            isPublicDataset = true;
+        } else {
+            // Virtual Simulation (Science-Based)
+            const t = i / months;
+            const forced = (warmingRate * 12 * i / 12) + (0.5 * Math.pow(t, 2.8) * 15);
+            const seasonality = (region === 'Tropics' ? 2 : 10) * Math.sin((2 * Math.PI * (monthNum - 1)) / 12);
+            const enso = 0.9 * Math.sin((2 * Math.PI * i) / (5.5 * 12));
+            const noise = (Math.random() - 0.5) * 1.5;
+            temp = baseTemp + forced + seasonality + enso + noise;
+        }
+
+        // 2. Check for real NOAA CO2 (Public)
+        const realCO2 = REAL_NOAA_CO2.find(r => r.year === year);
+        if (realCO2) {
+            co2 = realCO2.co2;
+        } else {
+            const t = i / months;
+            co2 = 285 + (135 * Math.pow(t, 2.2)) + (Math.random() * 0.5);
+        }
+
+        regionPoints.push({
+            date: format(d, 'yyyy-MM-dd'),
+            timestamp: d.getTime(),
+            year,
+            month: monthNum,
+            temp: parseFloat(temp.toFixed(2)),
+            co2: parseFloat(co2.toFixed(2)),
+            region,
+            tempLag1: 0, 
+            tempLag12: 0,
+            rollingAvg12: 0,
+            isAnomaly: false,
+            isPublicDataset
+        });
     }
 
-    // CO2 ppm trend (exponential growth from ~300 to ~420)
-    const co2 = 310 + (110 * Math.pow(t, 1.5)) + (Math.random() - 0.5) * 2;
-    
-    // Rainfall mm (seasonal + noise)
-    const rainfall = 60 + 20 * Math.sin((2 * Math.PI * (month - 4)) / 12) + (Math.random() - 0.5) * 15;
+    // Advanced Feature Engineering Pipeline
+    regionPoints = regionPoints.map((p, i) => {
+        const lag1 = i > 0 ? regionPoints[i-1].temp : p.temp;
+        const lag12 = i >= 12 ? regionPoints[i-12].temp : p.temp;
+        
+        // Rolling Window (Sliding Window feature)
+        let sum = 0;
+        let count = 0;
+        for (let j = Math.max(0, i - 11); j <= i; j++) {
+            sum += regionPoints[j].temp;
+            count++;
+        }
+        const rolling = sum / count;
 
-    data.push({
-      date: format(currentDate, 'yyyy-MM-dd'),
-      timestamp: currentDate.getTime(),
-      year,
-      month,
-      temp: parseFloat((baseTemp + seasonality + noise + anomaly).toFixed(2)),
-      co2: parseFloat(co2.toFixed(1)),
-      rainfall: parseFloat(Math.max(0, rainfall).toFixed(1)),
-      isAnomaly
+        return {
+            ...p,
+            tempLag1: lag1,
+            tempLag12: lag12,
+            rollingAvg12: parseFloat(rolling.toFixed(2)),
+        };
     });
-  }
 
-  return data;
-}
-
-export function getYearlyAverage(data: ClimateDataPoint[]) {
-  const years = [...new Set(data.map(d => d.year))];
-  return years.map(year => {
-    const yearData = data.filter(d => d.year === year);
-    const avgTemp = yearData.reduce((acc, d) => acc + d.temp, 0) / yearData.length;
-    return {
-      year,
-      temp: parseFloat(avgTemp.toFixed(2))
-    };
+    allData.push(...regionPoints);
   });
+
+  return allData;
 }
